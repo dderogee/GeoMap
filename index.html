@@ -1,13 +1,85 @@
 <!doctype html>
-<html lang="en">
+<html lang="nl">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>GeoMap</title>
+  <style>
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;margin:24px}
+    #map-wrap{max-width:1200px}
+    /* SVG responsief */
+    #map-wrap svg{width:100%;height:auto;display:block}
+
+    /* standaard landen look (Simplemaps gebruikt meestal paths) */
+    #map-wrap [id]{ transition: fill .15s ease, opacity .15s ease; cursor:pointer; }
+
+    /* hover */
+    #map-wrap [id]:hover{ opacity:.75; }
+
+    /* “visited” landen */
+    .visited{ fill:#7fc97f !important; }
+
+    /* optioneel: voorkom dat oceaan/achtergrond klikbaar wordt (als die een id heeft) */
+    /* #map-wrap #ocean, #map-wrap #background { pointer-events:none; } */
+  </style>
 </head>
-<body style="margin:20px;font-family:system-ui;">
-  <h1>GeoMap - HTML test</h1>
-  <p>Als je dit ziet, wordt index.html goed geserveerd.</p>
-  <img src="./world.svg" alt="World map" style="max-width:100%;height:auto;display:block;">
+
+<body>
+  <h1>GeoMap</h1>
+  <p>Klik landen aan om ze als “bezocht” te markeren.</p>
+
+  <div id="map-wrap">
+    <!-- Laad de SVG inline in de pagina -->
+    <object id="svgObj" type="image/svg+xml" data="world.svg"></object>
+  </div>
+
+  <script>
+    // landen die je alvast “bezocht” wilt zetten
+    const visited = new Set(["NL","FR","US"]);
+
+    // 1) Wacht tot de SVG geladen is
+    const obj = document.getElementById("svgObj");
+    obj.addEventListener("load", () => {
+      const svgDoc = obj.contentDocument;
+      if (!svgDoc) return;
+
+      // 2) Vind het root svg element
+      const svg = svgDoc.querySelector("svg");
+      if (!svg) return;
+
+      // 3) Zet initieel de visited class
+      for (const code of visited) {
+        const el = svgDoc.getElementById(code);
+        if (el) el.classList.add("visited");
+      }
+
+      // 4) Klikgedrag: toggle visited + onthouden in localStorage
+      // (zodat het blijft staan na refresh)
+      const saved = JSON.parse(localStorage.getItem("visitedCountries") || "[]");
+      saved.forEach(code => {
+        const el = svgDoc.getElementById(code);
+        if (el) el.classList.add("visited");
+        visited.add(code);
+      });
+
+      // Voeg click listeners toe aan alleen bestaande landcodes:
+      // We nemen simpelweg alle elements met een 2-letter id.
+      const nodes = svg.querySelectorAll("[id]");
+      nodes.forEach(el => {
+        const id = el.id;
+        if (!/^[A-Z]{2}$/.test(id)) return; // alleen ISO2 codes zoals NL, FR, US
+
+        el.addEventListener("click", (e) => {
+          e.preventDefault();
+          el.classList.toggle("visited");
+
+          if (el.classList.contains("visited")) visited.add(id);
+          else visited.delete(id);
+
+          localStorage.setItem("visitedCountries", JSON.stringify([...visited].sort()));
+        });
+      });
+    });
+  </script>
 </body>
 </html>
