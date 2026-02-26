@@ -34,9 +34,16 @@
   </div>
 
 <script>
-  const visited = new Set(["NL","FR","US"]);
+  // Zet hier je 33 landen (exact zoals ze in world.svg als class staan)
+  // Voorbeelden:
+  const visited = new Set([
+    "Netherlands",
+    "France",
+    "United States"
+  ]);
 
   const obj = document.getElementById("svgObj");
+
   obj.addEventListener("load", () => {
     const svgDoc = obj.contentDocument;
     if (!svgDoc) return;
@@ -44,41 +51,46 @@
     const svg = svgDoc.querySelector("svg");
     if (!svg) return;
 
-    // 1) Inject CSS IN de SVG (cruciaal)
+    // CSS in de SVG zelf injecteren (nodig voor <object>)
     const style = svgDoc.createElementNS("http://www.w3.org/2000/svg", "style");
     style.textContent = `
-      /* maak landen klikbaar */
-      [id] { cursor: pointer; }
-      [id]:hover { opacity: .75; }
-
-      /* visited: kleur het element EN eventuele paden erbinnen */
-      .visited { fill: #1e40af !important; }
-      .visited * { fill: #1e40af !important; }
+      path[class] { cursor: pointer; transition: fill .15s ease, opacity .15s ease; }
+      path[class]:hover { opacity: .75; }
+      .visited { fill: #2b6cff !important; }
     `;
     svg.insertBefore(style, svg.firstChild);
 
-    // 2) Herstel uit localStorage
+    // Restore uit localStorage
     const saved = JSON.parse(localStorage.getItem("visitedCountries") || "[]");
-    saved.forEach(code => visited.add(code));
+    saved.forEach(name => visited.add(name));
 
-    // 3) Zet initieel visited
-    for (const code of visited) {
-      const el = svgDoc.getElementById(code);
-      if (el) el.classList.add("visited");
-    }
+    // Helper: markeer alle paths van een land (zelfde class)
+    const setVisited = (countryName, on) => {
+      const paths = svg.querySelectorAll('path[class]');
+      paths.forEach(p => {
+        if (p.getAttribute("class") === countryName) {
+          if (on) p.classList.add("visited");
+          else p.classList.remove("visited");
+        }
+      });
+    };
 
-    // 4) Klik: toggle visited op ISO2 ids (NL/FR/US etc)
-    const nodes = svg.querySelectorAll("[id]");
-    nodes.forEach(el => {
-      const id = el.id;
-      if (!/^[A-Z]{2}$/.test(id)) return;
+    // Initieel toepassen
+    visited.forEach(name => setVisited(name, true));
 
-      el.addEventListener("click", (e) => {
+    // Klik: toggle per land (per class-naam)
+    svg.querySelectorAll("path[class]").forEach(p => {
+      const countryName = p.getAttribute("class");
+      if (!countryName) return;
+
+      p.addEventListener("click", (e) => {
         e.preventDefault();
-        el.classList.toggle("visited");
 
-        if (el.classList.contains("visited")) visited.add(id);
-        else visited.delete(id);
+        const isOn = visited.has(countryName);
+        if (isOn) visited.delete(countryName);
+        else visited.add(countryName);
+
+        setVisited(countryName, !isOn);
 
         localStorage.setItem("visitedCountries", JSON.stringify([...visited].sort()));
       });
