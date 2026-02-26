@@ -33,53 +33,57 @@
     <object id="svgObj" type="image/svg+xml" data="world.svg"></object>
   </div>
 
-  <script>
-    // landen die je alvast “bezocht” wilt zetten
-    const visited = new Set(["NL","FR","US"]);
+<script>
+  const visited = new Set(["NL","FR","US"]);
 
-    // 1) Wacht tot de SVG geladen is
-    const obj = document.getElementById("svgObj");
-    obj.addEventListener("load", () => {
-      const svgDoc = obj.contentDocument;
-      if (!svgDoc) return;
+  const obj = document.getElementById("svgObj");
+  obj.addEventListener("load", () => {
+    const svgDoc = obj.contentDocument;
+    if (!svgDoc) return;
 
-      // 2) Vind het root svg element
-      const svg = svgDoc.querySelector("svg");
-      if (!svg) return;
+    const svg = svgDoc.querySelector("svg");
+    if (!svg) return;
 
-      // 3) Zet initieel de visited class
-      for (const code of visited) {
-        const el = svgDoc.getElementById(code);
-        if (el) el.classList.add("visited");
-      }
+    // 1) Inject CSS IN de SVG (cruciaal)
+    const style = svgDoc.createElementNS("http://www.w3.org/2000/svg", "style");
+    style.textContent = `
+      /* maak landen klikbaar */
+      [id] { cursor: pointer; }
+      [id]:hover { opacity: .75; }
 
-      // 4) Klikgedrag: toggle visited + onthouden in localStorage
-      // (zodat het blijft staan na refresh)
-      const saved = JSON.parse(localStorage.getItem("visitedCountries") || "[]");
-      saved.forEach(code => {
-        const el = svgDoc.getElementById(code);
-        if (el) el.classList.add("visited");
-        visited.add(code);
-      });
+      /* visited: kleur het element EN eventuele paden erbinnen */
+      .visited { fill: #7fc97f !important; }
+      .visited * { fill: #7fc97f !important; }
+    `;
+    svg.insertBefore(style, svg.firstChild);
 
-      // Voeg click listeners toe aan alleen bestaande landcodes:
-      // We nemen simpelweg alle elements met een 2-letter id.
-      const nodes = svg.querySelectorAll("[id]");
-      nodes.forEach(el => {
-        const id = el.id;
-        if (!/^[A-Z]{2}$/.test(id)) return; // alleen ISO2 codes zoals NL, FR, US
+    // 2) Herstel uit localStorage
+    const saved = JSON.parse(localStorage.getItem("visitedCountries") || "[]");
+    saved.forEach(code => visited.add(code));
 
-        el.addEventListener("click", (e) => {
-          e.preventDefault();
-          el.classList.toggle("visited");
+    // 3) Zet initieel visited
+    for (const code of visited) {
+      const el = svgDoc.getElementById(code);
+      if (el) el.classList.add("visited");
+    }
 
-          if (el.classList.contains("visited")) visited.add(id);
-          else visited.delete(id);
+    // 4) Klik: toggle visited op ISO2 ids (NL/FR/US etc)
+    const nodes = svg.querySelectorAll("[id]");
+    nodes.forEach(el => {
+      const id = el.id;
+      if (!/^[A-Z]{2}$/.test(id)) return;
 
-          localStorage.setItem("visitedCountries", JSON.stringify([...visited].sort()));
-        });
+      el.addEventListener("click", (e) => {
+        e.preventDefault();
+        el.classList.toggle("visited");
+
+        if (el.classList.contains("visited")) visited.add(id);
+        else visited.delete(id);
+
+        localStorage.setItem("visitedCountries", JSON.stringify([...visited].sort()));
       });
     });
-  </script>
+  });
+</script>
 </body>
 </html>
