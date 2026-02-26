@@ -34,13 +34,50 @@
   </div>
 
 <script>
-  // Zet hier je 33 landen (exact zoals ze in world.svg als class staan)
-  // Voorbeelden:
-  const visited = new Set([
-    "Netherlands",
-    "France",
-    "United States"
-  ]);
+  // 1) Startset (optioneel): landen die meteen "bezocht" zijn
+  const visited = new Set(["NL", "FR", "US"]);
+
+  // 2) Mapping: ISO2 code -> classnaam in jouw SimpleMaps SVG
+  // Dit is de sleutel: jouw SVG gebruikt vaak class="France" ipv id="FR".
+  const codeToClass = {
+    AT: "Austria",
+    BE: "Belgium",
+    BW: "Botswana",
+    CA: "Canada",
+    CH: "Switzerland",
+    CN: "China",
+    CR: "Costa Rica",
+    CW: "Curacao",          // kan ook "Curaçao" zijn in jouw SVG; zie stap 3 hieronder
+    CZ: "Czech Republic",   // kan ook "Czechia" zijn
+    DE: "Germany",
+    DK: "Denmark",
+    EG: "Egypt",
+    ES: "Spain",
+    FI: "Finland",
+    FO: "Faroe Islands",    // kan afwijken
+    FR: "France",
+    GB: "United Kingdom",   // kan ook "United Kingdom of Great Britain and Northern Ireland"
+    HK: "Hong Kong",        // kan ook "Hongkong"
+    HR: "Croatia",
+    IE: "Ireland",
+    IL: "Israel",
+    IT: "Italy",
+    JO: "Jordan",
+    LU: "Luxembourg",
+    NA: "Namibia",
+    NL: "Netherlands",
+    NO: "Norway",
+    PH: "Philippines",
+    PT: "Portugal",
+    RU: "Russia",
+    SJ: "Svalbard and Jan Mayen",
+    US: "United States",
+    VA: "Vatican City",
+    ZW: "Zimbabwe"
+  };
+
+  // 3) Reverse mapping: classnaam -> ISO2 code (voor klikken)
+  const classToCode = Object.fromEntries(Object.entries(codeToClass).map(([k,v]) => [v, k]));
 
   const obj = document.getElementById("svgObj");
 
@@ -51,48 +88,77 @@
     const svg = svgDoc.querySelector("svg");
     if (!svg) return;
 
-    // CSS in de SVG zelf injecteren (nodig voor <object>)
+    // CSS in de SVG injecteren (cruciaal bij <object>)
     const style = svgDoc.createElementNS("http://www.w3.org/2000/svg", "style");
     style.textContent = `
-      path[class] { cursor: pointer; transition: fill .15s ease, opacity .15s ease; }
-      path[class]:hover { opacity: .75; }
-      .visited { fill: #2b6cff !important; }
+      [id], [class] { cursor: pointer; }
+      [id]:hover, [class]:hover { opacity: .75; }
+      .visited { fill: #1e6bff !important; }
+      .visited * { fill: #1e6bff !important; }
     `;
     svg.insertBefore(style, svg.firstChild);
 
+    // Helpers
+    const cssEscape = (s) => (window.CSS && CSS.escape) ? CSS.escape(s) : s.replace(/[^a-zA-Z0-9_-]/g, "\\$&");
+
+    // Pak alle shapes voor een code (via id OF via class)
+    function getNodesForCode(code) {
+      const nodes = [];
+      // id match
+      const byId = svgDoc.getElementById(code);
+      if (byId) nodes.push(byId);
+
+      // class match (vaak meerdere paths)
+      const cls = codeToClass[code];
+      if (cls) {
+        const sel = "." + cssEscape(cls);
+        nodes.push(...svg.querySelectorAll(sel));
+      }
+      return nodes;
+    }
+
+    function setVisited(code, on) {
+      const nodes = getNodesForCode(code);
+      if (!nodes.length) return;
+
+      nodes.forEach(n => n.classList.toggle("visited", on));
+      if (on) visited.add(code); else visited.delete(code);
+
+      localStorage.setItem("visitedCountries", JSON.stringify([...visited].sort()));
+    }
+
     // Restore uit localStorage
-    const saved = JSON.parse(localStorage.getItem("visitedCountries") || "[]");
-    saved.forEach(name => visited.add(name));
+    try {
+      const saved = JSON.parse(localStorage.getItem("visitedCountries") || "[]");
+      saved.forEach(code => visited.add(code));
+    } catch(e){}
 
-    // Helper: markeer alle paths van een land (zelfde class)
-    const setVisited = (countryName, on) => {
-      const paths = svg.querySelectorAll('path[class]');
-      paths.forEach(p => {
-        if (p.getAttribute("class") === countryName) {
-          if (on) p.classList.add("visited");
-          else p.classList.remove("visited");
-        }
-      });
-    };
+    // Init kleur zetten
+    [...visited].forEach(code => setVisited(code, true));
 
-    // Initieel toepassen
-    visited.forEach(name => setVisited(name, true));
-
-    // Klik: toggle per land (per class-naam)
-    svg.querySelectorAll("path[class]").forEach(p => {
-      const countryName = p.getAttribute("class");
-      if (!countryName) return;
-
-      p.addEventListener("click", (e) => {
+    // Klik-handler: luister op ALLES met class of id,
+    // en bepaal de ISO2 code op basis van id OF classnaam.
+    const clickable = svg.querySelectorAll("[id], [class]");
+    clickable.forEach(el => {
+      el.addEventListener("click", (e) => {
         e.preventDefault();
 
-        const isOn = visited.has(countryName);
-        if (isOn) visited.delete(countryName);
-        else visited.add(countryName);
+        // 1) Als het een ISO2 id heeft (NL/FR/US), gebruik die
+        const id = (el.id || "").trim();
+        if (/^[A-Z]{2}$/.test(id)) {
+          setVisited(id, !visited.has(id));
+          return;
+        }
 
-        setVisited(countryName, !isOn);
+        // 2) Anders: pak de class en kijk of die in onze mapping zit
+        // (SimpleMaps zet vaak één class met spaties, bv "United States")
+        const cls = (el.getAttribute("class") || "").trim();
+        if (!cls) return;
 
-        localStorage.setItem("visitedCountries", JSON.stringify([...visited].sort()));
+        const code = classToCode[cls];
+        if (!code) return;
+
+        setVisited(code, !visited.has(code));
       });
     });
   });
